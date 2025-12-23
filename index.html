@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><link rel="icon" type="image/webp" href="logo.webp">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Games</title>
+    <style>
+        /* CSS: Recreating the LCD Hardware Feel */
+        body {
+            background-color: #121212;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* The greenish-yellow LCD screen container */
+        .nokia-screen {
+            background-color: #94b422; 
+            width: 420px;
+            height: 320px;
+            border: 20px solid #222;
+            border-radius: 8px;
+            position: relative;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.15), 0 0 30px rgba(0,0,0,0.5);
+        }
+
+        /* Scanline effect to mimic old display technology */
+        .nokia-screen::after {
+            content: " ";
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0));
+            z-index: 2;
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+        }
+
+        canvas {
+            display: block;
+            background-color: transparent;
+            image-rendering: pixelated; /* Essential for that retro look */
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 15px;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: 900;
+            color: #000;
+            border-bottom: 2px solid #000;
+            font-size: 20px;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-family: 'Courier New', Courier, monospace;
+            color: #000;
+            display: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+<div class="nokia-screen">
+    <div class="header">
+        <span id="score">00</span>
+        <span style="letter-spacing: 2px;">SNAKE</span>
+    </div>
+    
+    <canvas id="gameCanvas" width="420" height="280"></canvas>
+    
+    <div id="game-over">
+        <h1 style="margin: 0; font-size: 40px;">CRASHED!</h1>
+        <p style="font-weight: bold;">Press SPACE to retry</p>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreElement = document.getElementById("score");
+    const gameOverScreen = document.getElementById("game-over");
+
+    // Grid settings
+    const gridSize = 20; // Size of each LCD "pixel"
+    const cols = canvas.width / gridSize;
+    const rows = canvas.height / gridSize;
+
+    let score = 0;
+    let snake = [{x: 5, y: 7}, {x: 4, y: 7}, {x: 3, y: 7}];
+    let food = {x: 15, y: 7};
+    let dx = 1; 
+    let dy = 0;
+    let nextDx = 1;
+    let nextDy = 0;
+    let isGameOver = false;
+
+    // Control logic
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowUp" && dy === 0) { nextDx = 0; nextDy = -1; }
+        if (e.key === "ArrowDown" && dy === 0) { nextDx = 0; nextDy = 1; }
+        if (e.key === "ArrowLeft" && dx === 0) { nextDx = -1; nextDy = 0; }
+        if (e.key === "ArrowRight" && dx === 0) { nextDx = 1; nextDy = 0; }
+        if (e.code === "Space" && isGameOver) resetGame();
+    });
+
+    function draw() {
+        if (isGameOver) return;
+
+        // Apply direction change
+        dx = nextDx;
+        dy = nextDy;
+
+        // Calculate new head position
+        const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+        // Collision Check: Walls
+        if (head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows) {
+            endGame();
+            return;
+        }
+
+        // Collision Check: Self
+        for (let segment of snake) {
+            if (head.x === segment.x && head.y === segment.y) {
+                endGame();
+                return;
+            }
+        }
+
+        snake.unshift(head);
+
+        // Check Food
+        if (head.x === food.x && head.y === food.y) {
+            score++;
+            scoreElement.innerText = score.toString().padStart(2, '0');
+            placeFood();
+        } else {
+            snake.pop();
+        }
+
+        render();
+    }
+
+    function render() {
+        // Clear screen with the LCD base color
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Food (Classic square dot)
+        ctx.fillStyle = "#000";
+        ctx.fillRect(food.x * gridSize + 2, food.y * gridSize + 2, gridSize - 4, gridSize - 4);
+
+        // Draw Snake
+        snake.forEach((part, index) => {
+            ctx.fillStyle = "#000";
+            // The -4 creates the small gap between blocks characteristic of old LCDs
+            ctx.fillRect(part.x * gridSize + 2, part.y * gridSize + 2, gridSize - 4, gridSize - 4);
+        });
+    }
+
+    function placeFood() {
+        food = {
+            x: Math.floor(Math.random() * cols),
+            y: Math.floor(Math.random() * rows)
+        };
+        // Ensure food doesn't land on snake
+        if (snake.some(p => p.x === food.x && p.y === food.y)) placeFood();
+    }
+
+    function endGame() {
+        isGameOver = true;
+        gameOverScreen.style.display = "block";
+    }
+
+    function resetGame() {
+        score = 0;
+        scoreElement.innerText = "00";
+        snake = [{x: 5, y: 7}, {x: 4, y: 7}, {x: 3, y: 7}];
+        dx = 1; dy = 0; nextDx = 1; nextDy = 0;
+        isGameOver = false;
+        gameOverScreen.style.display = "none";
+        placeFood();
+    }
+
+    // SPEED CONTROL: 160ms is the "Original Slow" speed of the first Snake games.
+    setInterval(draw, 160);
+</script>
+
+</body>
+</html>
